@@ -1,0 +1,165 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  サンプルCloudFormationテンプレート（Well-Architectedの問題を意図的に含む・デモ用）
+  /review を実行するとエージェントがこれらの問題を検出します。
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues: [production, staging, development]
+
+  DBPassword:
+    Type: String
+    # SEC-SM-001 CRITICAL: Defaultへのパスワード記載は禁止 — Secrets Managerの動的参照を使うこと
+    NoEcho: true
+
+Resources:
+
+  # ─── VPC ──────────────────────────────────────────────────────────────────
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      # NET-VPC-003 WARNING: EnableDnsSupportとEnableDnsHostnamesが未設定
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-vpc"
+      # NET-VPC-002 WARNING: VPC Flow Logsリソースが未定義
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      # NET-SUB-005 WARNING: 1つのAZのみ
+
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+
+  # ─── セキュリティグループ ──────────────────────────────────────────────────
+
+  WebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Webサーバーセキュリティグループ
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0  # SEC-SG-001 CRITICAL: SSHが全世界に公開されている
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  # ─── EC2 ──────────────────────────────────────────────────────────────────
+
+  AppServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      ImageId: ami-0d52744d6551d851e
+      SubnetId: !Ref PublicSubnet        # NET-SUB-001 CRITICAL: アプリサーバーがパブリックサブネットにある
+      SecurityGroupIds:
+        - !Ref WebSecurityGroup
+      # REL-SPOF-001 CRITICAL: ASGなしの単一EC2インスタンス
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          # SEC-SM-001 CRITICAL: UserDataへの認証情報ハードコードは禁止 — Secrets Managerから取得すること
+      Tags:
+        - Key: Name
+          Value: app-server
+        # COST-TAG-001 WARNING: Environment・Team・Projectタグが欠如している
+
+  # ─── RDS ──────────────────────────────────────────────────────────────────
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: データベースサブネットグループ
+      SubnetIds:
+        - !Ref PrivateSubnet
+        # REL-MAZ-001: サブネットが1つのみ（単一AZ）
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: prod-db
+      DBInstanceClass: db.t3.micro
+      Engine: mysql
+      EngineVersion: "8.0"
+      MasterUsername: admin
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref WebSecurityGroup
+      MultiAZ: false              # REL-MAZ-001 CRITICAL: Multi-AZが無効
+      StorageEncrypted: false     # SEC-KMS-001 CRITICAL: 暗号化が無効
+      BackupRetentionPeriod: 0    # REL-BKP-001 CRITICAL: バックアップが無効
+    DeletionPolicy: Delete
+
+  # ─── S3 ───────────────────────────────────────────────────────────────────
+
+  DataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-data"
+      VersioningConfiguration:
+        Status: Enabled
+      # SEC-S3-001/002/003/004 CRITICAL: PublicAccessBlockConfigurationが未設定
+      # COST-S3-001 WARNING: LifecycleConfigurationが未設定
+
+  # ─── IAM ──────────────────────────────────────────────────────────────────
+
+  AppRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: app-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: app-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: "*"          # SEC-IAM-001 CRITICAL: ワイルドカードアクション
+                Resource: "*"        # SEC-IAM-002 CRITICAL: ワイルドカードリソース
+
+Outputs:
+  VpcId:
+    Value: !Ref VPC
+    Description: VPC ID
+  AppServerPublicIp:
+    Value: !GetAtt AppServer.PublicIp
+    Description: アプリサーバーのパブリックIP
+  DatabaseEndpoint:
+    Value: !GetAtt Database.Endpoint.Address
+    Description: RDSエンドポイント

@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Read(*)",
+      "Write(well-architected-review-*.md)"
+    ]
+  },
+  "agents": {
+    "orchestrator": {
+      "description": "Coordinates the Well-Architected review workflow"
+    },
+    "security-reviewer": {
+      "description": "Reviews IaC for AWS Security Pillar compliance"
+    },
+    "cost-reviewer": {
+      "description": "Reviews IaC for AWS Cost Optimization"
+    },
+    "reliability-reviewer": {
+      "description": "Reviews IaC for AWS Reliability Pillar"
+    },
+    "networking-reviewer": {
+      "description": "Reviews IaC for AWS Networking best practices"
+    },
+    "report-writer": {
+      "description": "Generates the final Well-Architected review report"
+    }
+  }
+}
