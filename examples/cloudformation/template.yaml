@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  サンプルCloudFormationテンプレート（Well-Architectedの問題を意図的に含む・デモ用）
-  /review を実行するとエージェントがこれらの問題を検出します。
+  Sample CloudFormation template that intentionally contains Well-Architected issues for demonstration.
+  Running /review should detect these issues.
 
 Parameters:
   Environment:
@@ -11,7 +11,7 @@ Parameters:
 
   DBPassword:
     Type: String
-    # SEC-SM-001 CRITICAL: Defaultへのパスワード記載は禁止 — Secrets Managerの動的参照を使うこと
+    # SEC-SM-001 CRITICAL: Do not place passwords in Defaults; use a Secrets Manager dynamic reference.
     NoEcho: true
 
 Resources:
@@ -22,11 +22,11 @@ Resources:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: 10.0.0.0/16
-      # NET-VPC-003 WARNING: EnableDnsSupportとEnableDnsHostnamesが未設定
+      # NET-VPC-003 WARNING: EnableDnsSupport and EnableDnsHostnames are not set
       Tags:
         - Key: Name
           Value: !Sub "${AWS::StackName}-vpc"
-      # NET-VPC-002 WARNING: VPC Flow Logsリソースが未定義
+      # NET-VPC-002 WARNING: VPC Flow Logs resource is not defined
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
@@ -44,7 +44,7 @@ Resources:
       CidrBlock: 10.0.1.0/24
       AvailabilityZone: !Select [0, !GetAZs ""]
       MapPublicIpOnLaunch: true
-      # NET-SUB-005 WARNING: 1つのAZのみ
+      # NET-SUB-005 WARNING: only one AZ is defined
 
   PrivateSubnet:
     Type: AWS::EC2::Subnet
@@ -53,12 +53,12 @@ Resources:
       CidrBlock: 10.0.2.0/24
       AvailabilityZone: !Select [0, !GetAZs ""]
 
-  # ─── セキュリティグループ ──────────────────────────────────────────────────
+  # ─── Security Group ─────────────────────────────────────────────────────────
 
   WebSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Webサーバーセキュリティグループ
+      GroupDescription: Web server security group
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -68,7 +68,7 @@ Resources:
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
-          CidrIp: 0.0.0.0/0  # SEC-SG-001 CRITICAL: SSHが全世界に公開されている
+          CidrIp: 0.0.0.0/0  # SEC-SG-001 CRITICAL: SSH is exposed to the entire internet
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
@@ -80,28 +80,28 @@ Resources:
     Properties:
       InstanceType: t3.micro
       ImageId: ami-0d52744d6551d851e
-      SubnetId: !Ref PublicSubnet        # NET-SUB-001 CRITICAL: アプリサーバーがパブリックサブネットにある
+      SubnetId: !Ref PublicSubnet        # NET-SUB-001 CRITICAL: application server is in a public subnet
       SecurityGroupIds:
         - !Ref WebSecurityGroup
-      # REL-SPOF-001 CRITICAL: ASGなしの単一EC2インスタンス
+      # REL-SPOF-001 CRITICAL: single EC2 instance without an ASG
       UserData:
         Fn::Base64: |
           #!/bin/bash
-          # SEC-SM-001 CRITICAL: UserDataへの認証情報ハードコードは禁止 — Secrets Managerから取得すること
+          # SEC-SM-001 CRITICAL: credentials must not be hardcoded in UserData; retrieve them from Secrets Manager
       Tags:
         - Key: Name
           Value: app-server
-        # COST-TAG-001 WARNING: Environment・Team・Projectタグが欠如している
+        # COST-TAG-001 WARNING: Environment, Team, and Project tags are missing
 
   # ─── RDS ──────────────────────────────────────────────────────────────────
 
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: データベースサブネットグループ
+      DBSubnetGroupDescription: Database subnet group
       SubnetIds:
         - !Ref PrivateSubnet
-        # REL-MAZ-001: サブネットが1つのみ（単一AZ）
+        # REL-MAZ-001: only one subnet (single AZ)
 
   Database:
     Type: AWS::RDS::DBInstance
@@ -115,9 +115,9 @@ Resources:
       DBSubnetGroupName: !Ref DBSubnetGroup
       VPCSecurityGroups:
         - !Ref WebSecurityGroup
-      MultiAZ: false              # REL-MAZ-001 CRITICAL: Multi-AZが無効
-      StorageEncrypted: false     # SEC-KMS-001 CRITICAL: 暗号化が無効
-      BackupRetentionPeriod: 0    # REL-BKP-001 CRITICAL: バックアップが無効
+      MultiAZ: false              # REL-MAZ-001 CRITICAL: Multi-AZ is disabled
+      StorageEncrypted: false     # SEC-KMS-001 CRITICAL: encryption is disabled
+      BackupRetentionPeriod: 0    # REL-BKP-001 CRITICAL: backups are disabled
     DeletionPolicy: Delete
 
   # ─── S3 ───────────────────────────────────────────────────────────────────
@@ -128,8 +128,8 @@ Resources:
       BucketName: !Sub "${AWS::StackName}-data"
       VersioningConfiguration:
         Status: Enabled
-      # SEC-S3-001/002/003/004 CRITICAL: PublicAccessBlockConfigurationが未設定
-      # COST-S3-001 WARNING: LifecycleConfigurationが未設定
+      # SEC-S3-001/002/003/004 CRITICAL: PublicAccessBlockConfiguration is not set
+      # COST-S3-001 WARNING: LifecycleConfiguration is not set
 
   # ─── IAM ──────────────────────────────────────────────────────────────────
 
@@ -150,8 +150,8 @@ Resources:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
-                Action: "*"          # SEC-IAM-001 CRITICAL: ワイルドカードアクション
-                Resource: "*"        # SEC-IAM-002 CRITICAL: ワイルドカードリソース
+                Action: "*"          # SEC-IAM-001 CRITICAL: wildcard action
+                Resource: "*"        # SEC-IAM-002 CRITICAL: wildcard resource
 
 Outputs:
   VpcId:
@@ -159,7 +159,7 @@ Outputs:
     Description: VPC ID
   AppServerPublicIp:
     Value: !GetAtt AppServer.PublicIp
-    Description: アプリサーバーのパブリックIP
+    Description: Application server public IP
   DatabaseEndpoint:
     Value: !GetAtt Database.Endpoint.Address
-    Description: RDSエンドポイント
+    Description: RDS endpoint

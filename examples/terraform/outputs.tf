@@ -4,12 +4,12 @@ output "vpc_id" {
 }
 
 output "instance_public_ip" {
-  description = "アプリサーバーのパブリックIP"
+  description = "Application server public IP"
   value       = aws_instance.app.public_ip
 }
 
 output "rds_endpoint" {
-  description = "RDSインスタンスのエンドポイント"
+  description = "RDS instance endpoint"
   value       = aws_db_instance.main.endpoint
   sensitive   = true
 }
