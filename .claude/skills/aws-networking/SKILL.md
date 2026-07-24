@@ -1,165 +1,47 @@
 ---
 name: aws-networking
-description: AWSネットワーク設計の知識ベース。VPCアーキテクチャ・サブネット分離・ルートテーブル設計・Transit Gateway・Direct Connect・ハイブリッド接続パターンを対象とする。AWS Well-ArchitectedネットワークおよびVPCベストプラクティスに準拠。
+description: AWS networking review criteria covering VPCs, subnet isolation, route tables, Transit Gateway, Direct Connect, and hybrid connectivity.
 ---
 
-# AWSネットワーク設計レビュー基準
+# AWS Networking Review Criteria
 
-準拠基準:
-- AWS Well-Architectedパフォーマンス効率柱（ネットワークセクション）
-- AWS VPCベストプラクティス
-- AWSネットワークアーキテクチャパターン
-- AWS Direct Connect設計パターン
+Review VPC architecture, subnet isolation, routing, resilience, and private connectivity.
 
----
+## VPC and Subnets
 
-## VPC設計
+- Plan non-overlapping CIDR ranges with future VPC and Transit Gateway growth in mind.
+- Enable `enable_dns_support` and `enable_dns_hostnames` when private DNS is required.
+- **NET-VPC-001** (CRITICAL): Do not use the default VPC for production workloads.
+- **NET-VPC-002** (WARNING): VPC Flow Logs are missing in a production VPC.
+- **NET-VPC-003** (WARNING): VPC DNS support or hostnames are disabled or implicit.
+- **NET-VPC-004** (WARNING): VPC CIDR ranges overlap with on-premises or other VPC ranges.
+- **NET-VPC-005** (INFO): Add S3 and DynamoDB gateway endpoints.
+- **NET-VPC-006** (INFO): Add interface endpoints for SSM, ECR, and Secrets Manager where private access is required.
+- **NET-SUB-001** (CRITICAL): Application servers are placed in a public subnet.
+- **NET-SUB-002** (CRITICAL): Database instances are not in isolated subnets with no internet route.
+- **NET-SUB-003** (WARNING): Bastion hosts are used where Session Manager would be safer.
+- **NET-SUB-004** (WARNING): Network ACL defense in depth is missing where required.
+- **NET-SUB-005** (WARNING): Public, private, or isolated tiers are not distributed across at least two AZs.
+- **NET-SUB-006** (INFO): Subnets lack clear tier tags such as `public`, `private`, or `isolated`.
 
-### CIDR計画
-- VPC間でCIDRを重複させない（将来のピアリングやTGW接続を妨げる）
-- 大規模環境は `/16`、マイクロサービス単位のVPCは `/20`〜`/22`
-- 将来の拡張のためにIPアドレス空間を確保する
+## Routing
 
-### ルール
-- **NET-VPC-001**（CRITICAL）: 本番ワークロードにデフォルトVPCを使用しない
-- **NET-VPC-002**（WARNING）: 全本番VPCでVPC Flow Logsを有効にすること
-- **NET-VPC-003**（WARNING）: `enable_dns_support = true` と `enable_dns_hostnames = true` を明示的に設定すること
-- **NET-VPC-004**（WARNING）: VPCのCIDRがオンプレミスや他のVPCのCIDRと重複しないこと
-- **NET-VPC-005**（INFO）: S3とDynamoBoxへのゲートウェイVPCエンドポイントを追加する（無料、セキュリティ向上）
-- **NET-VPC-006**（INFO）: SSM・ECR・Secrets ManagerへのインターフェースVPCエンドポイントでトラフィックをプライベート化する
+- **NET-RT-001** (CRITICAL): A private route table sends traffic directly to an Internet Gateway.
+- **NET-RT-002** (WARNING): Subnets lack explicit route table associations.
+- **NET-RT-003** (WARNING): Peering routes use overly broad aggregate CIDRs.
+- **NET-RT-004** (INFO): Isolated route tables contain more than local and endpoint routes.
+- **NET-RT-005** (INFO): Route tables are shared across workload tiers.
 
-### パターン例
-```hcl
-# 良い例: 適切に設定されたVPC
-resource "aws_vpc" "main" {
-  cidr_block           = "10.0.0.0/16"
-  enable_dns_support   = true
-  enable_dns_hostnames = true
+## Transit Gateway and Direct Connect
 
-  tags = { Name = "prod-vpc" }
-}
-
-resource "aws_flow_log" "main" {
-  vpc_id          = aws_vpc.main.id
-  traffic_type    = "ALL"
-  iam_role_arn    = aws_iam_role.flow_log.arn
-  log_destination = aws_cloudwatch_log_group.flow_log.arn
-}
-```
-
----
-
-## サブネット分離（パブリック / プライベート / 隔離）
-
-### 3層サブネットパターン（本番環境では必須）
-```
-インターネット
-      │
-[パブリックサブネット]  ← ALB・NATゲートウェイ・踏み台ホスト
-      │
-[プライベートサブネット] ← EC2・ECS・Lambda・EKSノード
-      │
-[隔離サブネット]       ← RDS・ElastiCache・OpenSearch
-```
-
-### ルール
-- **NET-SUB-001**（CRITICAL）: アプリケーションサーバーをパブリックサブネットに配置しない
-- **NET-SUB-002**（CRITICAL）: データベースインスタンスは隔離サブネット（インターネットルートなし）に配置すること
-- **NET-SUB-003**（WARNING）: 踏み台ホストはAWS Systems Manager Session Managerに置き換えることを推奨
-- **NET-SUB-004**（WARNING）: セキュリティグループに加えてNACLで多層防御を実装すること
-- **NET-SUB-005**（WARNING）: 各ティア（パブリック/プライベート/隔離）は2AZ以上にまたがること
-- **NET-SUB-006**（INFO）: サブネットにティアタグを付与する（`Tier = public | private | isolated`）
-
-### IaCでのサブネット種別の識別方法
-```hcl
-# パブリックサブネットの指標: IGWへのデフォルトルートがある
-resource "aws_route" "public_internet" {
-  route_table_id         = aws_route_table.public.id
-  destination_cidr_block = "0.0.0.0/0"
-  gateway_id             = aws_internet_gateway.main.id  # ← パブリック
-}
-
-# プライベートサブネットの指標: NATゲートウェイ経由のルートがある
-resource "aws_route" "private_nat" {
-  route_table_id         = aws_route_table.private.id
-  destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.main.id  # ← プライベート
-}
-
-# 隔離サブネット: インターネットへのデフォルトルートが一切ない
-```
-
----
-
-## ルートテーブル設計
-
-### ルール
-- **NET-RT-001**（CRITICAL）: プライベートサブネットのルートテーブルにIGWをデフォルトルートとして設定しない
-- **NET-RT-002**（WARNING）: 全サブネットに明示的なルートテーブル関連付けを設定する（デフォルトルートテーブルを使わない）
-- **NET-RT-003**（WARNING）: ピアリングルートには広いアグリゲートではなく特定のCIDRを使用する
-- **NET-RT-004**（INFO）: 隔離サブネットにはローカルVPCルートとVPCエンドポイントルートのみ設定する
-- **NET-RT-005**（INFO）: ティアごとにルートテーブルを分離する（共有ルートテーブルを使わない）
-
----
-
-## Transit Gateway
-
-### TGWを使うべきケース
-- 3つ以上のVPCが通信する場合 → メッシュピアリングよりTGWがシンプル
-- 集中セキュリティ検査のハブスポークトポロジー
-- AWS RAMを使ったマルチアカウント接続
-
-### ルール
-- **NET-TGW-001**（WARNING）: 3つ以上のVPCにピアリング接続がある場合はTransit Gatewayを検討する
-- **NET-TGW-002**（WARNING）: TGWルートテーブルによるセグメンテーションがない場合、全VPCがフルメッシュ通信できる
-- **NET-TGW-003**（WARNING）: TGWにFlow LogsまたはCloudWatchモニタリングを設定すること
-- **NET-TGW-004**（INFO）: AWS Resource Access Manager（RAM）を使ってマルチアカウントでTGWを共有する
-- **NET-TGW-005**（INFO）: TGWルートテーブルを使って本番/非本番/共有サービスVPCをセグメント化する
-
-### パターン例
-```hcl
-# 良い例: ルートテーブルによるTGWのセグメンテーション
-resource "aws_ec2_transit_gateway_route_table" "prod" {}
-resource "aws_ec2_transit_gateway_route_table" "nonprod" {}
-
-# 異なるルートテーブルにより開発→本番のトラフィックを防止
-```
-
----
-
-## Direct Connect・ハイブリッド接続
-
-### 接続オプション（帯域幅・コスト昇順）
-1. **Site-to-Site VPN** — 最大1.25Gbps、暗号化、インターネット経由
-2. **Direct Connect** — 1〜100Gbps、専用線、低レイテンシ
-3. **Direct Connect + VPN** — 最もセキュア（プライベート + 暗号化）
-
-### ルール
-- **NET-DX-001**（WARNING）: VPNトンネルの冗長性がない（AWSは2つのトンネルを作成するが両方を監視すること）
-- **NET-DX-002**（WARNING）: Direct Connectの冗長接続がない（単一DX = 単一障害点）
-- **NET-DX-003**（WARNING）: VPNトンネル状態変化のCloudWatchアラームを設定すること
-- **NET-DX-004**（INFO）: 高帯域幅（1Gbps超の持続的利用）の場合、VPNよりDirect Connectのほうがコスト効率が良い
-- **NET-DX-005**（INFO）: Direct Connect Gatewayを使って複数のVPC/リージョンに接続する
-- **NET-DX-006**（INFO）: VPCピアリングよりAWS PrivateLinkでサービス間接続を検討する
-
-### VPN監視パターン例
-```hcl
-resource "aws_cloudwatch_metric_alarm" "vpn_tunnel_down" {
-  alarm_name          = "vpn-トンネル状態"
-  metric_name         = "TunnelState"
-  namespace           = "AWS/VPN"
-  statistic           = "Minimum"
-  period              = 60
-  threshold           = 1
-  comparison_operator = "LessThanThreshold"
-  evaluation_periods  = 2
-}
-```
-
----
-
-## PrivateLink
-
-- **NET-PL-001**（INFO）: VPC間のサービス公開にはVPCピアリングではなくPrivateLink（NLB + エンドポイントサービス）を使用する
-- **NET-PL-002**（INFO）: SaaSサービスへの接続にはVPN/インターネット経由ではなくPrivateLinkを使用する
-- PrivateLinkはVPCルートテーブルの変更が不要で、ピアリングよりスケーラブル
+- **NET-TGW-001** (WARNING): Multiple VPCs lack a documented Transit Gateway strategy.
+- **NET-TGW-002** (WARNING): TGW route tables do not isolate environments.
+- **NET-TGW-003** (WARNING): Transit Gateway Flow Logs are missing.
+- **NET-TGW-004** (INFO): TGW sharing through AWS RAM is not documented.
+- **NET-TGW-005** (INFO): TGW attachments lack clear environment and ownership tags.
+- **NET-DX-001** (WARNING): A single VPN or Direct Connect path creates a connectivity SPOF.
+- **NET-DX-002** (WARNING): Direct Connect lacks a redundant connection or backup VPN.
+- **NET-DX-003** (WARNING): VPN tunnel health is not monitored.
+- **NET-DX-004** (INFO): Use Direct Connect for sustained high-volume traffic.
+- **NET-DX-005** (INFO): Consider Direct Connect Gateway for multi-region or multi-VPC connectivity.
+- **NET-DX-006** (INFO): Consider PrivateLink for service-to-service private access.

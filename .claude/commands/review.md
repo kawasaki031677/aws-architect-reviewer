@@ -1,38 +1,38 @@
-リポジトリ内のIaCに対してAWS Well-Architectedレビューを実行する。
+Run an AWS Well-Architected review against the repository's IaC.
 
-## このコマンドの動作
+## Command Behavior
 
-1. `orchestrator` エージェントを起動してTerraformおよびCloudFormationファイルをスキャンする
-2. オーケストレーターが専門レビューエージェントに委譲する：
-   - `security-reviewer` — IAM・KMS・S3・セキュリティグループ・CloudTrail・Secrets
-   - `cost-reviewer` — NATゲートウェイ・RDS・EC2/ECSサイジング・S3ライフサイクル・CloudFront
-   - `reliability-reviewer` — Multi-AZ・Auto Scaling・バックアップ・DR・単一障害点
-   - `networking-reviewer` — VPC設計・サブネット分離・ルーティング・Transit Gateway・Direct Connect
-   - `operational-excellence-reviewer` — CloudWatch監視・ログ保持期間・X-Rayトレーシング・タグ戦略
-   - `performance-reviewer` — インスタンス世代・キャッシュ・RDS Proxy・Lambda最適化
-   - `sustainability-reviewer` — Graviton推奨・スポット活用・ライフサイクル・非本番稼働削減
-3. `report-writer` エージェントが全結果を統合してMarkdownレポートを生成する
+1. Start the `orchestrator` agent to scan Terraform and CloudFormation files.
+2. The orchestrator delegates to specialist reviewers:
+   - `security-reviewer` - IAM, KMS, S3, security groups, CloudTrail, and Secrets Manager
+   - `cost-reviewer` - NAT gateways, RDS, EC2/ECS sizing, S3 lifecycle, and CloudFront
+   - `reliability-reviewer` - Multi-AZ, Auto Scaling, backups, DR, and single points of failure
+   - `networking-reviewer` - VPC design, subnet isolation, routing, Transit Gateway, and Direct Connect
+   - `operational-excellence-reviewer` - CloudWatch monitoring, log retention, X-Ray, and tagging
+   - `performance-reviewer` - instance generations, caching, RDS Proxy, and Lambda optimization
+   - `sustainability-reviewer` - Graviton, Spot usage, lifecycle policies, and non-production scheduling
+3. The `report-writer` agent combines all results and generates a Markdown report.
 
-## 使い方
+## Usage
 
 ```
 /review
 ```
 
-特定のサブディレクトリをレビューする場合：
+To review a specific subdirectory:
 ```
 /review examples/terraform
 ```
 
-## 出力
+## Output
 
-コマンドは `well-architected-review-YYYYMMDD.md` を生成する。
+The command generates `well-architected-review-YYYYMMDD.md`.
 
-検出結果は以下で分類される：
-- 🔴 **CRITICAL** — 本番デプロイ前に必ず修正
-- 🟡 **WARNING** — 現スプリント内に対応
-- 🟢 **INFO** — バックログに追加
+Findings are classified as follows:
+- 🔴 **CRITICAL** - Fix before production deployment.
+- 🟡 **WARNING** - Address in the current sprint.
+- 🟢 **INFO** - Add to the backlog.
 
-## レビュー開始
+## Start the Review
 
-`orchestrator` エージェントを使ってレビューを開始する。ユーザーが指定したターゲットディレクトリ（未指定の場合はカレントディレクトリ `.`）を渡すこと。
+Start the review with the `orchestrator` agent. Pass the target directory specified by the user, or the current directory `.` when no target is specified.

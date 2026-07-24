@@ -1,41 +1,41 @@
-# AWS Well-Architectedレビューエージェント — CLAUDE.md
+# AWS Well-Architected Review Agent - CLAUDE.md
 
-このファイルはClaude Codeがセッション開始時に自動参照するプロジェクト設定です。
+This file contains project settings automatically referenced by Claude Code at session start.
 
-## プロジェクト概要
+## Project Overview
 
-TerraformおよびCloudFormationのIaCコードに対して、AWS Well-Architectedフレームワーク（6柱）＋ネットワーク設計（独自追加）の計7観点で自動レビューを行うClaude Codeエージェントシステムです。
+This Claude Code agent system automatically reviews Terraform and CloudFormation IaC across the six AWS Well-Architected pillars plus the additional networking perspective, for seven perspectives in total.
 
-## 構成
+## Structure
 
 ```
 .claude/
-├── agents/          # サブエージェント（各観点の専門レビュアー）
-├── skills/          # 共有知識ベース（チェックルール）
-└── commands/        # /review コマンド定義
-.mcp.json            # MCPサーバー設定（aws-docs / aws-pricing）
-examples/            # 動作確認用サンプルIaC
+├── agents/          # Specialized reviewer subagents
+├── skills/          # Shared knowledge bases and check rules
+└── commands/        # /review command definition
+.mcp.json            # MCP server configuration (aws-docs / aws-pricing)
+examples/            # Sample IaC for validation
 ```
 
-### エージェント一覧
+### Agents
 
-| エージェント | 役割 |
+| Agent | Responsibility |
 |---|---|
-| `orchestrator` | IaCスキャン・委譲・集約 |
-| `security-reviewer` | セキュリティ柱（Well-Architected） |
-| `cost-reviewer` | コスト最適化柱（Well-Architected） |
-| `reliability-reviewer` | 信頼性柱（Well-Architected） |
-| `operational-excellence-reviewer` | 運用上の優秀性柱（Well-Architected） |
-| `performance-reviewer` | パフォーマンス効率柱（Well-Architected） |
-| `sustainability-reviewer` | 持続可能性柱（Well-Architected） |
-| `networking-reviewer` | ネットワーク設計（独自追加：複数柱横断） |
-| `report-writer` | Markdownレポート生成 |
+| `orchestrator` | IaC scanning, delegation, and aggregation |
+| `security-reviewer` | Security pillar |
+| `cost-reviewer` | Cost optimization pillar |
+| `reliability-reviewer` | Reliability pillar |
+| `operational-excellence-reviewer` | Operational excellence pillar |
+| `performance-reviewer` | Performance efficiency pillar |
+| `sustainability-reviewer` | Sustainability pillar |
+| `networking-reviewer` | Additional cross-pillar networking review |
+| `report-writer` | Markdown report generation |
 
-### スキル一覧
+### Skills
 
-| スキル | 参照元 |
+| Skill | Used by |
 |---|---|
-| `well-architected` | orchestrator（レビュー方針の全体観） |
+| `well-architected` | orchestrator (overall review policy) |
 | `aws-security` | security-reviewer |
 | `aws-cost` | cost-reviewer |
 | `aws-reliability` | reliability-reviewer |
@@ -44,20 +44,20 @@ examples/            # 動作確認用サンプルIaC
 | `aws-sustainability` | sustainability-reviewer |
 | `aws-networking` | networking-reviewer |
 
-## 開発規約
+## Development Conventions
 
-### ドキュメント言語
-- **すべてのドキュメントは日本語で記述する**（コードコメント・スキル・エージェント定義・README含む）
+### Documentation Language
+- **Write all documentation in English**, including code comments, skills, agent definitions, and the README.
 
-### ルールID命名規則
+### Rule ID Naming
 
-各スキルのルールIDは以下の形式に従うこと：
+Rule IDs in each skill must use this format:
 
 ```
-[観点プレフィックス]-[カテゴリ]-[連番3桁]
+[pillar prefix]-[category]-[three-digit sequence]
 ```
 
-| 観点 | プレフィックス |
+| Pillar | Prefix |
 |---|---|
 | Security | SEC |
 | Cost | COST |
@@ -67,11 +67,11 @@ examples/            # 動作確認用サンプルIaC
 | Performance | PERF |
 | Sustainability | SUS |
 
-例: `SEC-IAM-001`、`COST-NAT-003`、`REL-MAZ-001`
+Examples: `SEC-IAM-001`, `COST-NAT-003`, `REL-MAZ-001`
 
-### エージェントの出力形式
+### Agent Output Format
 
-レビュアーエージェントは必ずJSON形式で返すこと：
+Reviewer agents must always return JSON:
 
 ```json
 {
@@ -82,8 +82,8 @@ examples/            # 動作確認用サンプルIaC
       "resource": "aws_iam_policy.app",
       "file": "main.tf",
       "severity": "CRITICAL",
-      "detail": "問題の詳細説明",
-      "remediation": "修正方法（可能であればドキュメントURLを含む）"
+      "detail": "Detailed description of the finding",
+      "remediation": "Remediation guidance, including documentation URLs where possible"
     }
   ],
   "warnings": [],
@@ -91,34 +91,34 @@ examples/            # 動作確認用サンプルIaC
 }
 ```
 
-### エージェントのtools:フィールド
+### Agent `tools:` Field
 
-サブエージェントがMCPツールを呼び出すには、`tools:` フロントマターに明示的に列挙する必要がある。追加・変更時は必ず対応するMCPツール名を記載すること。
+To call MCP tools, a subagent must list them explicitly in its `tools:` front matter. Always include the corresponding MCP tool name when adding or changing a tool.
 
-MCP ツール名の形式: `mcp__<サーバー名>__<ツール名>`
+MCP tool name format: `mcp__<server-name>__<tool-name>`
 
-例: `mcp__aws-docs__search_documentation`
+Example: `mcp__aws-docs__search_documentation`
 
-### MCPサーバー
+### MCP Servers
 
-| サーバー名 | パッケージ | 用途 |
+| Server | Package | Purpose |
 |---|---|---|
-| `aws-docs` | `awslabs.aws-documentation-mcp-server` | AWSドキュメント検索・参照 |
-| `aws-pricing` | `awslabs.aws-pricing-mcp-server` | リアルタイム料金取得・コスト試算 |
+| `aws-docs` | `awslabs.aws-documentation-mcp-server` | AWS documentation search and reference |
+| `aws-pricing` | `awslabs.aws-pricing-mcp-server` | Real-time pricing and cost estimates |
 
-MCPサーバーの起動には `uvx` が必要。未インストールの場合でもエージェントは動作するが、MCP参照なしでレビューを実施する。
+Starting the MCP servers requires `uvx`. The agents still work when it is unavailable, but reviews run without MCP references.
 
-## /review コマンドの使い方
+## Using `/review`
 
 ```
-/review                    # カレントディレクトリをレビュー
-/review examples/terraform # 特定ディレクトリをレビュー
+/review                    # Review the current directory
+/review examples/terraform # Review a specific directory
 ```
 
-レポートは `well-architected-review-YYYYMMDD.md` として出力される（.gitignore対象）。
+The report is written to `well-architected-review-YYYYMMDD.md` (ignored by Git).
 
-## 注意事項
+## Notes
 
-- `well-architected-review-*.md`（生成レポート）はGit管理外（.gitignore済み）
-- `.claude/settings.local.json` はGit管理外
-- サンプルIaC（`examples/`）には**意図的に問題を含めている**（動作確認用）
+- Generated `well-architected-review-*.md` reports are excluded from Git.
+- `.claude/settings.local.json` is excluded from Git.
+- Sample IaC in `examples/` **intentionally contains issues** for validation.

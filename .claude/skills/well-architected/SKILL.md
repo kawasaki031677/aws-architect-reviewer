@@ -1,105 +1,26 @@
 ---
 name: well-architected
-description: AWS Well-Architectedフレームワーク全体の知識ベース。6つの柱・設計原則・ベストプラクティス定義を提供する。専門エージェントへ委譲する前にレビュー基準を理解するためのスキル。
+description: Overall AWS Well-Architected review policy covering the six pillars, severity definitions, and IaC resource coverage.
 ---
 
-# AWS Well-Architectedフレームワーク
+# AWS Well-Architected Review Framework
 
-AWS Well-Architectedフレームワークは、クラウドアーキテクトがセキュアで高パフォーマンス、かつ回復力とコスト効率に優れたインフラを構築するための指針です。**6つの柱**から構成されています。
+Review every IaC resource through the six pillars: Operational Excellence, Security, Reliability, Performance Efficiency, Cost Optimization, and Sustainability. Networking is an additional cross-pillar perspective in this project.
 
----
+## Severity
 
-## 6つの柱
+| Severity | Meaning |
+| --- | --- |
+| **CRITICAL** | Immediate security, availability, compliance, or data-loss risk; fix before production. |
+| **WARNING** | Material deviation from best practice; address in the near term. |
+| **INFO** | Improvement that increases maturity or efficiency. |
 
-### 1. 運用上の優秀性（Operational Excellence）
-設計原則:
-- コードとして運用を行う
-- 小さく可逆な変更を頻繁に行う
-- 運用手順を継続的に改善する
-- 障害を予測する
-- すべての運用上の障害から学ぶ
+## Review Method
 
-主要分野: 組織、準備、運用、改善
+1. Identify Terraform and CloudFormation resources and their relationships.
+2. Apply the relevant specialist skill rules.
+3. Report each finding with a stable rule ID, resource, file, severity, detail, and remediation.
+4. Avoid speculative findings and distinguish missing configuration from intentional configuration.
+5. Return machine-readable JSON to the orchestrator.
 
-### 2. セキュリティ（Security）
-設計原則:
-- 強力なアイデンティティ基盤を実装する
-- トレーサビリティを確保する
-- すべてのレイヤーにセキュリティを適用する
-- セキュリティのベストプラクティスを自動化する
-- 転送中および保存中のデータを保護する
-- データから人を遠ざける
-- セキュリティイベントに備える
-
-主要分野: IAM、検出、インフラ保護、データ保護、インシデント対応
-
-### 3. 信頼性（Reliability）
-設計原則:
-- 障害から自動的に回復する
-- 復旧手順をテストする
-- 水平方向にスケールして全体的な可用性を高める
-- キャパシティの予測をやめる
-- 自動化で変更を管理する
-
-主要分野: 基盤、ワークロードアーキテクチャ、変更管理、障害管理
-
-### 4. パフォーマンス効率（Performance Efficiency）
-設計原則:
-- 高度な技術を民主化する
-- 数分でグローバル展開する
-- サーバーレスアーキテクチャを活用する
-- より多くの実験を行う
-- 技術の特性を考慮する
-
-主要分野: 選択、レビュー、モニタリング、トレードオフ
-
-### 5. コスト最適化（Cost Optimization）
-設計原則:
-- クラウド財務管理を実装する
-- 従量課金モデルを採用する
-- 全体的な効率を計測する
-- 差別化されない重作業への支出をやめる
-- 支出を分析し帰属させる
-
-主要分野: クラウド財務管理、支出と使用状況の可視化、費用対効果の高いリソース、需要と供給の管理、継続的な最適化
-
-### 6. 持続可能性（Sustainability）
-設計原則:
-- 影響を理解する
-- 持続可能性の目標を設定する
-- 使用率を最大化する
-- より効率的な新しいハードウェア・ソフトウェアを積極採用する
-- マネージドサービスを使用する
-- クラウドワークロードの下流への影響を削減する
-
-主要分野: リージョン選択、ユーザー行動パターン、ソフトウェア・アーキテクチャパターン
-
----
-
-## 重大度分類
-
-| レベル | 定義 |
-|---|---|
-| **CRITICAL** | Well-Architectedのベストプラクティスに直接違反。セキュリティ・可用性・コンプライアンスへの即時リスク。本番デプロイ前に必ず修正すること。 |
-| **WARNING** | ベストプラクティスから逸脱しており、リスクが増大している。現スプリントまたはリリースサイクル内に対応すること。 |
-| **INFO（推奨事項）** | アーキテクチャの成熟度を高める機会。バックログに追加すること。 |
-
----
-
-## IaCカバレッジマトリクス
-
-| リソース種別 | セキュリティ | コスト | 信頼性 | ネットワーク |
-|---|---|---|---|---|
-| VPC / サブネット | ✓ | ✓ | ✓ | ✓ |
-| EC2 / ASG | ✓ | ✓ | ✓ | ✓ |
-| RDS / Aurora | ✓ | ✓ | ✓ | - |
-| S3 | ✓ | ✓ | ✓ | - |
-| IAM | ✓ | - | - | - |
-| Lambda | ✓ | ✓ | ✓ | ✓ |
-| ECS / EKS | ✓ | ✓ | ✓ | ✓ |
-| CloudFront | ✓ | ✓ | ✓ | ✓ |
-| Route53 | ✓ | - | ✓ | ✓ |
-| KMS | ✓ | - | - | - |
-| セキュリティグループ | ✓ | - | - | ✓ |
-| NATゲートウェイ | - | ✓ | ✓ | ✓ |
-| Transit Gateway | - | ✓ | ✓ | ✓ |
+Review VPC, EC2/ASG, RDS/Aurora, S3, IAM, Lambda, ECS/EKS, CloudFront, Route 53, KMS, NAT, and Transit Gateway resources when present.
